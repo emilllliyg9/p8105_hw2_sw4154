@@ -1,0 +1,381 @@
+---
+title: "Homework 2"
+author: "Songyao Wang"
+date: "2026-10-04"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(janitor)
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE)
+```
+
+# Problem 1
+
+First, I import the NYC Transit dataset, retain the requested variables, and
+convert the `entry` variable from a character variable to a logical variable.
+
+```{r clean-transit-data}
+transit_data =
+  read_csv(
+    "data/NYC_Transit_Subway_Entrance_And_Exit_Data.csv",
+    na = c("NA", "")
+  ) |>
+  clean_names() |>
+  select(
+    line,
+    station_name,
+    station_latitude,
+    station_longitude,
+    route1:route11,
+    entry,
+    vending,
+    entrance_type,
+    ada
+  ) |>
+  mutate(
+    entry = case_match(
+      entry,
+      "YES" ~ TRUE,
+      "NO" ~ FALSE
+    )
+  )
+```
+
+The cleaned transit dataset contains information about subway entrances and
+exits, including station name and line, station coordinates, routes served,
+entry and vending status, entrance type, and ADA compliance. I standardized the
+variable names, retained the requested variables, and converted `entry` from
+`YES`/`NO` values to a logical variable.
+
+The resulting dataset has `r nrow(transit_data)` rows and
+`r ncol(transit_data)` columns. The dataset is not tidy because the routes
+served by each station are spread across `route1` through `route11` instead of
+being stored in a single route variable.
+
+## Transit questions
+
+```{r transit-summaries}
+number_stations =
+  transit_data |>
+  distinct(station_name, line) |>
+  nrow()
+
+number_ada_stations =
+  transit_data |>
+  filter(ada) |>
+  distinct(station_name, line) |>
+  nrow()
+
+proportion_entry_without_vending =
+  transit_data |>
+  filter(vending == "NO") |>
+  summarize(
+    proportion = mean(entry, na.rm = TRUE)
+  ) |>
+  pull(proportion)
+```
+
+There are `r number_stations` distinct stations when stations are identified
+using both station name and line. Of these, `r number_ada_stations` stations are
+ADA compliant.
+
+Among station entrances and exits without vending,
+`r scales::percent(proportion_entry_without_vending, accuracy = 0.1)` allow
+entrance.
+
+I next reshape the route columns so that route number and route name are
+separate variables.
+
+```{r tidy-routes}
+transit_routes =
+  transit_data |>
+  mutate(
+    across(route1:route11, as.character)
+  ) |>
+  pivot_longer(
+    cols = route1:route11,
+    names_to = "route_number",
+    names_prefix = "route",
+    values_to = "route_name",
+    values_drop_na = TRUE
+  ) |>
+  mutate(
+    route_number = as.integer(route_number)
+  )
+
+number_a_stations =
+  transit_routes |>
+  filter(route_name == "A") |>
+  distinct(station_name, line) |>
+  nrow()
+
+number_a_ada_stations =
+  transit_routes |>
+  filter(
+    route_name == "A",
+    ada == TRUE
+  ) |>
+  distinct(station_name, line) |>
+  nrow()
+```
+
+There are `r number_a_stations` distinct stations that serve the A train.
+Among these stations, `r number_a_ada_stations` are ADA compliant.
+
+# Problem 2
+
+I import the three requested Trash Wheel sheets. The specified Excel ranges
+omit the first non-data row and the unused note columns. I clean the variable
+names, remove rows without dumpster-specific information, standardize the
+month and year variables, and create a variable identifying each Trash Wheel.
+
+```{r clean-trash-wheel-data}
+mr_trash_wheel =
+  read_excel(
+    "data/202509 Trash Wheel Collection Data.xlsx",
+    sheet = "Mr. Trash Wheel",
+    range = "A2:N710"
+  ) |>
+  clean_names() |>
+  filter(!is.na(dumpster)) |>
+  mutate(
+    wheel = "Mr. Trash Wheel",
+    month = str_trim(month),
+    year = as.integer(year),
+    sports_balls = as.integer(round(sports_balls))
+  )
+
+professor_trash_wheel =
+  read_excel(
+    "data/202509 Trash Wheel Collection Data.xlsx",
+    sheet = "Professor Trash Wheel",
+    range = "A2:M135"
+  ) |>
+  clean_names() |>
+  filter(!is.na(dumpster)) |>
+  mutate(
+    wheel = "Professor Trash Wheel",
+    month = str_trim(month),
+    year = as.integer(year)
+  )
+
+gwynnda =
+  read_excel(
+    "data/202509 Trash Wheel Collection Data.xlsx",
+    sheet = "Gwynns Falls Trash Wheel",
+    range = "A2:L352"
+  ) |>
+  clean_names() |>
+  filter(!is.na(dumpster)) |>
+  mutate(
+    wheel = "Gwynnda",
+    month = str_trim(month),
+    year = as.integer(year)
+  )
+
+trash_wheel_data =
+  bind_rows(
+    mr_trash_wheel,
+    professor_trash_wheel,
+    gwynnda
+  ) |>
+  select(wheel, everything())
+```
+
+```{r trash-wheel-summaries}
+professor_total_weight =
+  trash_wheel_data |>
+  filter(wheel == "Professor Trash Wheel") |>
+  summarize(
+    total_weight = sum(weight_tons, na.rm = TRUE)
+  ) |>
+  pull(total_weight)
+
+gwynnda_june_2022_cigarettes =
+  trash_wheel_data |>
+  filter(
+    wheel == "Gwynnda",
+    month == "June",
+    year == 2022
+  ) |>
+  summarize(
+    total_cigarette_butts = sum(
+      cigarette_butts,
+      na.rm = TRUE
+    )
+  ) |>
+  pull(total_cigarette_butts)
+```
+
+The combined dataset contains `r nrow(trash_wheel_data)` dumpster-specific
+observations from Mr. Trash Wheel, Professor Trash Wheel, and Gwynnda. Important
+variables include wheel name, dumpster number, collection date, trash weight
+and volume, and counts of litter such as plastic bottles, cigarette butts, and
+plastic bags.
+
+For the available data, Professor Trash Wheel collected
+`r round(professor_total_weight, 2)` tons of trash. Gwynnda collected
+`r scales::comma(gwynnda_june_2022_cigarettes)` cigarette butts in June 2022.
+
+# Problem 3
+
+## Baseline demographic data
+
+The baseline file begins with a descriptive row, so I skip that row during
+import. I also treat `.` as a missing value, clean the variable names, convert
+sex and APOE4 carrier status to factors with descriptive labels, and remove
+participants who had MCI at baseline.
+
+```{r clean-baseline-data}
+mci_baseline =
+  read_csv(
+    "data/MCI_baseline.csv",
+    skip = 1,
+    na = "."
+  ) |>
+  clean_names() |>
+  filter(
+    is.na(age_at_onset) |
+      age_at_onset > current_age
+  ) |>
+  mutate(
+    sex = case_match(
+      sex,
+      0 ~ "Female",
+      1 ~ "Male"
+    ) |>
+      factor(
+        levels = c("Female", "Male")
+      ),
+    apoe4 = case_match(
+      apoe4,
+      0 ~ "Non-carrier",
+      1 ~ "Carrier"
+    ) |>
+      factor(
+        levels = c("Non-carrier", "Carrier")
+      )
+  )
+```
+
+```{r baseline-summaries}
+number_recruited =
+  nrow(mci_baseline)
+
+number_developed_mci =
+  mci_baseline |>
+  filter(!is.na(age_at_onset)) |>
+  nrow()
+
+average_baseline_age =
+  mean(mci_baseline$current_age)
+
+proportion_women_apoe4 =
+  mci_baseline |>
+  filter(sex == "Female") |>
+  summarize(
+    proportion = mean(apoe4 == "Carrier")
+  ) |>
+  pull(proportion)
+```
+
+After applying the baseline eligibility requirement,
+`r number_recruited` participants remain in the study. Of these,
+`r number_developed_mci` developed MCI during follow-up.
+
+The average baseline age was `r round(average_baseline_age, 2)` years. Among
+women, `r scales::percent(proportion_women_apoe4, accuracy = 0.1)` were APOE4
+carriers.
+
+## Longitudinal amyloid data
+
+The amyloid file also begins with a descriptive row, so I skip that row during
+import. I reshape the visit-specific columns into long format so that each row
+represents one observed biomarker measurement for one participant.
+
+```{r clean-amyloid-data}
+mci_amyloid =
+  read_csv(
+    "data/mci_amyloid.csv",
+    skip = 1
+  ) |>
+  clean_names() |>
+  pivot_longer(
+    baseline:time_8,
+    names_to = "visit",
+    values_to = "amyloid_42_40"
+  ) |>
+  mutate(
+    time_years = case_match(
+      visit,
+      "baseline" ~ 0,
+      "time_2" ~ 2,
+      "time_4" ~ 4,
+      "time_6" ~ 6,
+      "time_8" ~ 8
+    )
+  ) |>
+  drop_na(amyloid_42_40) |>
+  select(
+    id = study_id,
+    time_years,
+    amyloid_42_40
+  )
+```
+
+The cleaned amyloid dataset contains `r nrow(mci_amyloid)` observed biomarker
+measurements from `r n_distinct(mci_amyloid$id)` participants. Each row includes
+a participant ID, the number of years since baseline, and the measured amyloid
+beta 42/40 ratio.
+
+## Comparing and combining the datasets
+
+```{r compare-and-join-mci-data}
+baseline_only =
+  anti_join(
+    mci_baseline,
+    mci_amyloid,
+    by = "id"
+  )
+
+amyloid_only =
+  anti_join(
+    mci_amyloid,
+    mci_baseline,
+    by = "id"
+  ) |>
+  distinct(id)
+
+mci_complete =
+  inner_join(
+    mci_baseline,
+    mci_amyloid,
+    by = "id"
+  ) |>
+  arrange(id, time_years)
+
+write_csv(
+  mci_complete,
+  "data/mci_complete.csv"
+)
+```
+
+There are `r nrow(baseline_only)` eligible participants appearing only in the
+baseline dataset and `r nrow(amyloid_only)` participants appearing only in the
+amyloid dataset.
+
+The combined dataset retains participants found in both sources. It contains
+`r nrow(mci_complete)` observed participant visits from
+`r n_distinct(mci_complete$id)` participants. It includes baseline demographic
+characteristics, MCI onset information, follow-up time, and the corresponding
+amyloid beta 42/40 measurement.
+
+The final dataset is exported as `data/mci_complete.csv`.
+
