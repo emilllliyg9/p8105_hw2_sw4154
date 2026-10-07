@@ -1,7 +1,7 @@
 ---
 title: "Homework 2"
 author: "Songyao Wang"
-date: "2026-10-04"
+date: "2026-10-07"
 output: github_document
 ---
 
@@ -139,7 +139,7 @@ month and year variables, and create a variable identifying each Trash Wheel.
 ```{r clean-trash-wheel-data}
 mr_trash_wheel =
   read_excel(
-    "data/202509 Trash Wheel Collection Data.xlsx",
+    "data/202610 Trash Wheel Collection Data.xlsx",
     sheet = "Mr. Trash Wheel",
     range = "A2:N710"
   ) |>
@@ -154,7 +154,7 @@ mr_trash_wheel =
 
 professor_trash_wheel =
   read_excel(
-    "data/202509 Trash Wheel Collection Data.xlsx",
+    "data/202610 Trash Wheel Collection Data.xlsx",
     sheet = "Professor Trash Wheel",
     range = "A2:M135"
   ) |>
@@ -168,8 +168,8 @@ professor_trash_wheel =
 
 gwynnda =
   read_excel(
-    "data/202509 Trash Wheel Collection Data.xlsx",
-    sheet = "Gwynns Falls Trash Wheel",
+    "data/202610 Trash Wheel Collection Data.xlsx",
+    sheet = "Gwynnda the Good Wheel of the W",
     range = "A2:L352"
   ) |>
   clean_names() |>
